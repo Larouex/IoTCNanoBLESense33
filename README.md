@@ -143,5 +143,5 @@ The APDS-9960 is a digital proximity, ambient light, RGB and gesture sensor.
 ### GESTURE
 The Gesture sensor is a APDS9960, it senses gesture, color, ambience illumination and proximity . This chip, made by Broadcom is supported by library ArduinoAPDS9960.
 
-## Video - Overview of the Nano 33 BLW Code
+## Video - Overview of the Nano 33 BLE Code
 [![](http://img.youtube.com/vi/jphIzdP3grc/0.jpg)](http://www.youtube.com/watch?v=jphIzdP3grc "Overview Nano 33 BLE Code")
