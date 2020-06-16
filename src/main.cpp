@@ -9,6 +9,10 @@
     This code is licensed under MIT license (see LICENSE.txt for details)    
   ==========================================================================*/
 #include <Arduino_LSM9DS1.h>
+#include <Arduino_APDS9960.h>
+#include <Arduino_HTS221.h>
+#include <Arduino_LPS22HB.h>
+#include <PDM.h>
 #include <MadgwickAHRS.h>
 #include <string>
 #include <ArduinoBLE.h>
@@ -38,6 +42,11 @@ const int IMU_HZ = 119;
 Madgwick filter;
 unsigned long msecsPerReading, msecsPrevious;
 
+// buffer to read samples into, each sample is 16-bits
+short sampleBuffer[256];
+// number of samples read
+volatile int samplesRead;
+
 /* --------------------------------------------------------------------------
     Leds we manipulate for Status, etc.
    -------------------------------------------------------------------------- */
@@ -49,18 +58,30 @@ unsigned long msecsPerReading, msecsPrevious;
 /* --------------------------------------------------------------------------
     Characteristic Mappers
    -------------------------------------------------------------------------- */
-const int VERSION_CHARACTERISTIC            = 1;
-const int BATTERYCHARGED_CHARACTERISTIC     = 2;
-const int TELEMETRYFREQUENCY_CHARACTERISTIC = 3;
-const int ACCELEROMETER_CHARACTERISTIC      = 4;
-const int GYROSCOPE_CHARACTERISTIC          = 5;
-const int MAGNETOMETER_CHARACTERISTIC       = 6;
-const int ORIENTATION_CHARACTERISTIC        = 7;
-const int RGBLED_CHARACTERISTIC             = 8;
-const int BAROMETER_CHARACTERISTIC          = 9;
-const int TEMPERATURE_CHARACTERISTIC        = 10;
-const int HUMIDITY_CHARACTERISTIC           = 11;
-const int MICROPHONE_CHARACTERISTIC           = 11;
+enum CHARACTERISTICS: int {
+  VERSION_CHARACTERISTIC = 1,
+  BATTERYCHARGED_CHARACTERISTIC,
+  TELEMETRYFREQUENCY_CHARACTERISTIC,
+  ACCELEROMETER_CHARACTERISTIC,
+  GYROSCOPE_CHARACTERISTIC,
+  MAGNETOMETER_CHARACTERISTIC,
+  ORIENTATION_CHARACTERISTIC,
+  RGBLED_CHARACTERISTIC,
+  BAROMETER_CHARACTERISTIC,
+  TEMPERATURE_CHARACTERISTIC,
+  HUMIDITY_CHARACTERISTIC,
+  MICROPHONE_CHARACTERISTIC,
+  AMBIENTLIGHT_CHARACTERISTIC,
+  COLOR_CHARACTERISTIC,
+  PROXIMITY_CHARACTERISTIC,
+  GESTURE_CHARACTERISTIC
+};
+
+/* --------------------------------------------------------------------------
+    The sensor is close to ambient heat generation on the board, adjust
+    the temperature with the variance deducted from the read
+   -------------------------------------------------------------------------- */
+int AMBIENT_TEMPERATURE_ADJUST = 5;
 
 /* --------------------------------------------------------------------------
     Previous Battery Level Monitors
@@ -85,67 +106,67 @@ BLEService blePeripheral(LAROUEX_BLE_SERVICE_UUID("0000"));
    -------------------------------------------------------------------------- */
 // Version
 BLECharacteristic               versionCharacteristic("1001", BLERead | BLEWrite, sizeof(SEMANTIC_VERSION));
-BLEDescriptor                   versionCharacteristicDesc ("1002", "Version");
+BLEDescriptor                   versionCharacteristicDesc("1002", "Version");
 
 // Battery Charged
 BLEFloatCharacteristic          batteryChargedCharacteristic("2001", BLERead | BLENotify | BLEIndicate);
-BLEDescriptor                   batteryChargedCharacteristicDesc ("2002", "Battery Charged");
+BLEDescriptor                   batteryChargedCharacteristicDesc("2002", "Battery Charged");
 
 // Telemetry Frequency
 BLEIntCharacteristic            telemetryFrequencyCharacteristic("3001", BLERead | BLEWrite | BLENotify | BLEIndicate);
-BLEDescriptor                   telemetryFrequencyCharacteristicDesc ("3002", "Telemetry Frequency");
+BLEDescriptor                   telemetryFrequencyCharacteristicDesc("3002", "Telemetry Frequency");
 
 // Accelerometer
 BLECharacteristic               accelerometerCharacteristic("4001", BLENotify, 3 * sizeof(float));
-BLEDescriptor                   accelerometerCharacteristicDesc ("4002", "Accelerometer");
+BLEDescriptor                   accelerometerCharacteristicDesc("4002", "Accelerometer");
 
 // Gyroscope
 BLECharacteristic               gyroscopeCharacteristic("5001", BLENotify, 3 * sizeof(float));
-BLEDescriptor                   gyroscopeCharacteristicDesc ("5002", "Gyroscope");
+BLEDescriptor                   gyroscopeCharacteristicDesc("5002", "Gyroscope");
 
 // Magnetometer
 BLECharacteristic               magnetometerCharacteristic("6001", BLENotify, 3 * sizeof(float));
-BLEDescriptor                   magnetometerCharacteristicDesc ("6002", "Magnetometer");
+BLEDescriptor                   magnetometerCharacteristicDesc("6002", "Magnetometer");
 
 // Orientation
 BLECharacteristic               orientationCharacteristic("7001", BLENotify, 3 * sizeof(float));
-BLEDescriptor                   orientationCharacteristicDesc ("7002", "Orientation");
+BLEDescriptor                   orientationCharacteristicDesc("7002", "Orientation");
 
 // RGB Led
 BLECharacteristic               rgbLedCharacteristic("8001", BLERead | BLEWrite, 3 * sizeof(byte));
-BLEDescriptor                   rgbLedCharacteristicDesc ("8002", "RGB Led");
+BLEDescriptor                   rgbLedCharacteristicDesc("8002", "RGB Led");
 
 // Barometer
 BLEFloatCharacteristic          barometerCharacteristic("9001", BLERead);
-BLEDescriptor                   barometerCharacteristicDesc ("9002", "Barometer");
+BLEDescriptor                   barometerCharacteristicDesc("9002", "Barometer");
 
 // Temperature
 BLEFloatCharacteristic          temperatureCharacteristic("1101", BLERead);
-BLEDescriptor                   temperatureCharacteristicDesc ("1102", "Temperature");
+BLEDescriptor                   temperatureCharacteristicDesc("1102", "Temperature");
 
 // Humidity
 BLEFloatCharacteristic          humidityCharacteristic("1201", BLERead);
-BLEDescriptor                   humidityCharacteristicDesc ("1202", "Humidity");
+BLEDescriptor                   humidityCharacteristicDesc("1202", "Humidity");
 
 // Microphone
 BLECharacteristic               microphoneCharacteristic("1301", BLENotify, 32);
-BLEDescriptor                   microphoneCharacteristicDesc ("1302", "Microphone");
+BLEDescriptor                   microphoneCharacteristicDesc("1302", "Microphone");
 
 // Ambient Light
 BLEUnsignedShortCharacteristic  ambientLightCharacteristic("1401", BLENotify);
-BLEDescriptor                   ambientLightCharacteristicDesc ("1402", "Ambient Light");
+BLEDescriptor                   ambientLightCharacteristicDesc("1402", "Ambient Light");
 
 // Color
 BLECharacteristic               colorCharacteristic("1501", BLENotify, 3 * sizeof(unsigned short));
-BLEDescriptor                   colorCharacteristicDesc ("1502", "Color");
+BLEDescriptor                   colorCharacteristicDesc("1502", "Color");
 
 // Proximity
 BLEUnsignedCharCharacteristic   proximityCharacteristic("1601", BLENotify);
-BLEDescriptor                   proximityCharacteristic ("1602", "Proximity");
+BLEDescriptor                   proximityCharacteristicDesc("1602", "Proximity");
 
 // Gesture
 BLEByteCharacteristic           gestureCharacteristic("1701", BLENotify);
-BLEDescriptor                   gestureCharacteristic ("1702", "Gesture");
+BLEDescriptor                   gestureCharacteristicDesc("1702", "Gesture");
 
 // ************************** END CHARACTERISTICS ***************************
 
@@ -366,6 +387,33 @@ void onTelemetryFrequencyCharacteristicWrite(BLEDevice central, BLECharacteristi
 }
 
 /* --------------------------------------------------------------------------
+    BAROMETER (read) Event Handler from Central/Gateway
+   -------------------------------------------------------------------------- */
+void onBarometerCharacteristicRead(BLEDevice central, BLECharacteristic characteristic) {
+  float pressure = BARO.readPressure();
+  barometerCharacteristic.writeValue(pressure);
+  Serial.println("[EVENT] onBarometerCharacteristicRead");
+}
+
+/* --------------------------------------------------------------------------
+    TEMPERATURE (read) Event Handler from Central/Gateway
+   -------------------------------------------------------------------------- */
+void onTemperatureCharacteristicRead(BLEDevice central, BLECharacteristic characteristic) {
+  float temperature = HTS.readTemperature() - AMBIENT_TEMPERATURE_ADJUST;
+  temperatureCharacteristic.writeValue(temperature);
+  Serial.println("[EVENT] onTemperatureCharacteristicRead");
+}
+
+/* --------------------------------------------------------------------------
+    HUMIDITY (read) Event Handler from Central/Gateway
+   -------------------------------------------------------------------------- */
+void onHumidityCharacteristicRead(BLEDevice central, BLECharacteristic characteristic) {
+  float temperature = HTS.readHumidity();
+  temperatureCharacteristic.writeValue(temperature);
+  Serial.println("[EVENT] onTemperatureCharacteristicRead");
+}
+
+/* --------------------------------------------------------------------------
     RGBLED_CHARACTERISTIC Event Handler from Central/Gateway
    -------------------------------------------------------------------------- */
 void onRgbLedCharacteristicWrite(BLEDevice central, BLECharacteristic characteristic) {
@@ -391,77 +439,133 @@ void onRgbLedCharacteristicWrite(BLEDevice central, BLECharacteristic characteri
 
 }
 
+void onPDMdata() {
+
+  // query the number of bytes available
+  int bytesAvailable = PDM.available();
+
+  // read into the sample buffer
+  PDM.read(sampleBuffer, bytesAvailable);
+
+  // 16-bit, 2 bytes per sample
+  samplesRead = bytesAvailable / 2;
+
+}
+
 // ************************** END EVENT HANDLERS ****************************
 
 /* --------------------------------------------------------------------------
-    This Function acts as a positive indicater (true) when the 
-    characteristic is setup properly
+    If the characteristic is setup properly, we return the value, othrewise
+    the return is zero
    -------------------------------------------------------------------------- */
-bool SetUpCharacteristic(int whichCharacteristic)
+int SetUpCharacteristic(int whichCharacteristic)
 {
-  bool result = false;
+  int result = 0;
   switch (whichCharacteristic) {
 
-    // add the Characteristic - VERSION
     case VERSION_CHARACTERISTIC:
       blePeripheral.addCharacteristic(versionCharacteristic); 
       versionCharacteristic.addDescriptor(versionCharacteristicDesc);
       versionCharacteristic.setValue(SEMANTIC_VERSION, 14);
-      result = true;
+      result = whichCharacteristic;
       break;
 
-    // add the Characteristic - BATTERY CHARGED
     case BATTERYCHARGED_CHARACTERISTIC:
       blePeripheral.addCharacteristic(batteryChargedCharacteristic); 
       batteryChargedCharacteristic.addDescriptor(batteryChargedCharacteristicDesc);
       batteryChargedCharacteristic.writeValue(oldBatteryLevel);
       batteryChargedCharacteristic.broadcast();
-      result = true;
+      result = whichCharacteristic;
       break;
 
-    // add the Characteristic - TELEMETRY FREQUENCY
     case TELEMETRYFREQUENCY_CHARACTERISTIC:
       blePeripheral.addCharacteristic(telemetryFrequencyCharacteristic); 
       telemetryFrequencyCharacteristic.addDescriptor(telemetryFrequencyCharacteristicDesc);
       telemetryFrequencyCharacteristic.setValue(telemetryFrequency);
       telemetryFrequencyCharacteristic.setEventHandler(BLEWritten, onTelemetryFrequencyCharacteristicWrite);
-      result = true;
+      result = whichCharacteristic;
       break;
   
-    // add the Characteristic - ACCELEROMETER
     case ACCELEROMETER_CHARACTERISTIC:
       blePeripheral.addCharacteristic(accelerometerCharacteristic); 
       accelerometerCharacteristic.addDescriptor(accelerometerCharacteristicDesc);
-      result = true;
+      result = whichCharacteristic;
       break;
 
-    // add the Characteristic - GYROSCOPE
     case GYROSCOPE_CHARACTERISTIC:
       blePeripheral.addCharacteristic(gyroscopeCharacteristic); 
       gyroscopeCharacteristic.addDescriptor(gyroscopeCharacteristicDesc);
-      result = true;
+      result = whichCharacteristic;
       break;
 
-    // add the Characteristic - MAGNETOMETER
     case MAGNETOMETER_CHARACTERISTIC:
       blePeripheral.addCharacteristic(magnetometerCharacteristic); 
       magnetometerCharacteristic.addDescriptor(magnetometerCharacteristicDesc);
-      result = true;
+      result = whichCharacteristic;
       break;
 
-    // add the Characteristic - ORIENTATION
     case ORIENTATION_CHARACTERISTIC:
       blePeripheral.addCharacteristic(orientationCharacteristic); 
       orientationCharacteristic.addDescriptor(orientationCharacteristicDesc);
-      result = true;
+      result = whichCharacteristic;
       break;
 
-    // add the Characteristic - RGB LED
     case RGBLED_CHARACTERISTIC:
       blePeripheral.addCharacteristic(rgbLedCharacteristic); 
       rgbLedCharacteristic.addDescriptor(rgbLedCharacteristicDesc);
       rgbLedCharacteristic.setEventHandler(BLEWritten, onRgbLedCharacteristicWrite);
-      result = true;
+      result = whichCharacteristic;
+      break;
+
+    case BAROMETER_CHARACTERISTIC:
+      blePeripheral.addCharacteristic(barometerCharacteristic); 
+      barometerCharacteristic.addDescriptor(barometerCharacteristicDesc);
+      barometerCharacteristic.setEventHandler(BLERead, onBarometerCharacteristicRead);
+      result = whichCharacteristic;
+      break;
+
+    case TEMPERATURE_CHARACTERISTIC:
+      blePeripheral.addCharacteristic(temperatureCharacteristic); 
+      temperatureCharacteristic.addDescriptor(temperatureCharacteristicDesc);
+      temperatureCharacteristic.setEventHandler(BLERead, onTemperatureCharacteristicRead);
+      result = whichCharacteristic;
+      break;
+
+    case HUMIDITY_CHARACTERISTIC:
+      blePeripheral.addCharacteristic(humidityCharacteristic); 
+      humidityCharacteristic.addDescriptor(humidityCharacteristicDesc);
+      humidityCharacteristic.setEventHandler(BLERead, onHumidityCharacteristicRead);
+      result = whichCharacteristic;
+      break;
+
+    case MICROPHONE_CHARACTERISTIC:
+      blePeripheral.addCharacteristic(microphoneCharacteristic); 
+      microphoneCharacteristic.addDescriptor(microphoneCharacteristicDesc);
+      result = whichCharacteristic;
+      break;
+
+    case AMBIENTLIGHT_CHARACTERISTIC:
+      blePeripheral.addCharacteristic(ambientLightCharacteristic); 
+      ambientLightCharacteristic.addDescriptor(ambientLightCharacteristicDesc);
+      result = whichCharacteristic;
+      break;
+
+    case COLOR_CHARACTERISTIC:
+      blePeripheral.addCharacteristic(colorCharacteristic); 
+      colorCharacteristic.addDescriptor(colorCharacteristicDesc);
+      result = whichCharacteristic;
+      break;
+
+    case PROXIMITY_CHARACTERISTIC:
+      blePeripheral.addCharacteristic(proximityCharacteristic); 
+      proximityCharacteristic.addDescriptor(proximityCharacteristicDesc);
+      result = whichCharacteristic;
+      break;
+
+    case GESTURE_CHARACTERISTIC:
+      blePeripheral.addCharacteristic(gestureCharacteristic); 
+      gestureCharacteristic.addDescriptor(gestureCharacteristicDesc);
+      result = whichCharacteristic;
       break;
 
     default:
@@ -485,7 +589,16 @@ void setup() {
   // initialize serial communication
   Serial.begin(9600);    
   while (!Serial);
-    
+
+  // configure the data receive callback
+  PDM.onReceive(onPDMdata);
+
+  if (APDS.begin() && HTS.begin() && BARO.begin() && PDM.begin(1, 16000)) {
+    Serial.println("[SUCCESS] Succesfully initialized sensors on Nano 33 BLE Sense");
+  } else {
+    Serial.println("[FAILED] Sensors on the Nano 33 BLE SENSE board");
+  }    
+
   // begin IMU initialization
   if (!IMU.begin()) {
     Serial.println("[FAILED] Starting IMU");
@@ -556,6 +669,53 @@ void setup() {
     Serial.println("[SUCCESS] SetUpCharacteristic->RGBLED_CHARACTERISTIC");
   }
   
+  if (!SetUpCharacteristic(BAROMETER_CHARACTERISTIC)) {
+    Serial.println("[FAILED] SetUpCharacteristic->BAROMETER_CHARACTERISTIC");
+  } else {
+    Serial.println("[SUCCESS] SetUpCharacteristic->BAROMETER_CHARACTERISTIC");
+  }
+
+  if (!SetUpCharacteristic(TEMPERATURE_CHARACTERISTIC)) {
+    Serial.println("[FAILED] SetUpCharacteristic->TEMPERATURE_CHARACTERISTIC");
+  } else {
+    Serial.println("[SUCCESS] SetUpCharacteristic->TEMPERATURE_CHARACTERISTIC");
+  }
+
+  if (!SetUpCharacteristic(HUMIDITY_CHARACTERISTIC)) {
+    Serial.println("[FAILED] SetUpCharacteristic->HUMIDITY_CHARACTERISTIC");
+  } else {
+    Serial.println("[SUCCESS] SetUpCharacteristic->HUMIDITY_CHARACTERISTIC");
+  }
+
+  if (!SetUpCharacteristic(MICROPHONE_CHARACTERISTIC)) {
+    Serial.println("[FAILED] SetUpCharacteristic->MICROPHONE_CHARACTERISTIC");
+  } else {
+    Serial.println("[SUCCESS] SetUpCharacteristic->MICROPHONE_CHARACTERISTIC");
+  }
+
+  if (!SetUpCharacteristic(AMBIENTLIGHT_CHARACTERISTIC)) {
+    Serial.println("[FAILED] SetUpCharacteristic->AMBIENTLIGHT_CHARACTERISTIC");
+  } else {
+    Serial.println("[SUCCESS] SetUpCharacteristic->AMBIENTLIGHT_CHARACTERISTIC");
+  }
+
+  if (!SetUpCharacteristic(COLOR_CHARACTERISTIC)) {
+    Serial.println("[FAILED] SetUpCharacteristic->COLOR_CHARACTERISTIC");
+  } else {
+    Serial.println("[SUCCESS] SetUpCharacteristic->COLOR_CHARACTERISTIC");
+  }
+
+  if (!SetUpCharacteristic(PROXIMITY_CHARACTERISTIC)) {
+    Serial.println("[FAILED] SetUpCharacteristic->PROXIMITY_CHARACTERISTIC");
+  } else {
+    Serial.println("[SUCCESS] SetUpCharacteristic->PROXIMITY_CHARACTERISTIC");
+  }
+
+  if (!SetUpCharacteristic(GESTURE_CHARACTERISTIC)) {
+    Serial.println("[FAILED] SetUpCharacteristic->GESTURE_CHARACTERISTIC");
+  } else {
+    Serial.println("[SUCCESS] SetUpCharacteristic->GESTURE_CHARACTERISTIC");
+  }
   /* 
     Set a local name for the BLE device
     This name will appear in advertising packets
