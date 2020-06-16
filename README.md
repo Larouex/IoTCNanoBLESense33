@@ -128,20 +128,37 @@ The following will be the Bluetooth characteristics we will be exposing from our
 ### ACCELEROMETER, GYROSCOPE & MAGNETOMETER
 The IMU is a LSM9DS1, it is a 3-axis accelerometer, 3-axis gyroscope and 3-axis magnetometer. This chip, made by ST Microelectronics, is a standard component supported by library ArduinoLSM9DS1.
 
+
 ### BAROMETER
 The LPS22HB is an ultra-compact piezoresistive absolute pressure sensor which functions as a digital output barometer.
+
+Allows you to read the pressure sensor of your Nano 33 BLE Sense
+[LINK: LPS22HB Library for Arduino](https://github.com/arduino-libraries/Arduino_LPS22HB?utm_source=platformio&utm_medium=piohome)
+
 
 ### TEMPERATURE & HUMIDITY
 The relative humidity and temperature sensor is a HTS221, is an ultra-compact sensor that uses a polymer dielectric planar capacitor structure capable of detecting relative humidity variations and temperature, returned as digital output on a serial interface. This chip, made by ST is supported by our library ArduinoHTS221.
 
+Allows you to read the temperature and humidity sensors of your Nano 33 BLE Sense.
+[LINK: HTS221 Library for Arduino](https://github.com/arduino-libraries/Arduino_HTS221?utm_source=platformio&utm_medium=piohome)
+
+
 ### MICROPHONE
 The digital microphone is a MP34DT05, This chip, made by ST Microelectronics, is an ultra-compact, low-power, omnidirectional, digital MEMS microphone built with a capacitive sensing element and an IC interface; it produces an output coded in PDM. The PDM format is supported by library PDM that can be used also with ArduinoSound.
+
+PDM microphone library for the Arduino Zero / Adafruit Feather M0 (SAMD21 processor).
+[LINK: Adafruit Zero PDM Library](https://github.com/adafruit/Adafruit_ZeroPDM?utm_source=platformio&utm_medium=piohome)
+
+
+### GESTURE
+The Gesture sensor is a APDS9960, it senses gesture, color, ambience illumination and proximity . This chip, made by Broadcom is supported by library ArduinoAPDS9960.
 
 ### AMBIENTLIGHT, COLOR, PROXIMITY & GESTURE
 The APDS-9960 is a digital proximity, ambient light, RGB and gesture sensor.
 
-### GESTURE
-The Gesture sensor is a APDS9960, it senses gesture, color, ambience illumination and proximity . This chip, made by Broadcom is supported by library ArduinoAPDS9960.
+A library for the APDS9960 sensor, allows you to read gestures, color, and proximity on your Arduino Nano 33 BLE Sense board and other boards with sensor attached via I2C.
+[LINK: APDS9960 Library for Arduino](https://github.com/arduino-libraries/Arduino_APDS9960?utm_source=platformio&utm_medium=piohome)
+
 
 ## Video - Overview of the Nano 33 BLE Code
 [![](http://img.youtube.com/vi/jphIzdP3grc/0.jpg)](http://www.youtube.com/watch?v=jphIzdP3grc "Overview Nano 33 BLE Code")
