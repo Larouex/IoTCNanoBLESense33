@@ -6,25 +6,34 @@ This repository is part of a training and project series for Azure IoT Central. 
 [LINK: Training & Project Site for Raspberry Pi Gateway and Arduino Nano BLE Devices for Azure Iot Central](http://www.hackinmakin.com/Raspberry%20Pi%20Gateway%20and%20BLE/index.html)
 
 
-### Arduino Nano 33 BLE
-![alt text](./Assets/nano-ble-33.jpg "Arduino Nano 33 BLE") 
+### Arduino Nano 33 BLE Sense
+![alt text](./Assets/nano-ble-sense.jpg "Arduino Nano 33 BLE Sense") 
 
-The Arduino Nano 33 BLE is an evolution of the traditional Arduino Nano, but featuring a lot more powerful processor, the nRF52840 from Nordic Semiconductors, a 32-bit ARM® Cortex™-M4 CPU running at 64 MHz. This will allow you to make larger programs than with the Arduino Uno (it has 1MB of program memory, 32 times bigger), and with a lot more variables (the RAM is 128 times bigger). 
-The main processor includes other amazing features like Bluetooth® pairing via NFC and ultra low power consumption modes. The Nano 33 BLE comes with a 9 axis inertial measurement unit (IMU) which means that it includes an accelerometer, a gyroscope, and a magnetometer with 3-axis resolution each. This makes the Nano 33 BLE the perfect choice for more advanced robotics experiments, exercise trackers, digital compasses, etc.
+The Arduino Nano 33 BLE Sense is an evolution of the traditional Arduino Nano, but featuring a lot more powerful processor, the nRF52840 from Nordic Semiconductors, a 32-bit ARM® Cortex™-M4 CPU running at 64 MHz. This will allow you to make larger programs than with the Arduino Uno (it has 1MB of program memory, 32 times bigger), and with a lot more variables (the RAM is 128 times bigger). The main processor includes other amazing features like Bluetooth® pairing via NFC and ultra low power consumption modes.
+
+### Embedded Artificial Intelligence 
+The main feature of this board, besides the impressive selection of sensors, is the possibility of running Edge Computing applications (AI) on it using TinyML. You can create your machine learning models using TensorFlow™ Lite and upload them to your board using the Arduino IDE. Arduino’s developer Sandeep Mistry and Arduino’s advisor Dominic Pajak have prepared an introductory tutorial to AI on the Nano 33 BLE Sense, but also a more advanced guide on color detection. 
+
+### An Improved Arduino Nano 
+If you used Arduino Nano in your projects in the past, the Nano 33 BLE Sense is a pin-equivalent substitute. Your code will still work, but remember, it operates at 3.3V. This means that you need to revise your original design in case it is not 3.3V compatible. Besides that, the main differences to the classic Nano are: a better processor, a micro-USB connector, and all of the sensors mentioned above. You can get the board with or without headers, what will allow you embedding the Nano inside any kind of inventions, including wearables. The board comes with tessellated connectors and no components on the B-side. These features allow you to solder the board directly onto your own design, minimizing the height of your whole prototype. Oh, and did we mention the improved price? Thanks to a revised manufacturing process, the Arduino Nano 33 BLE Sense is really cost efficient … what are you waiting for? Upgrade now!
 
 The communications chipset on the Nano 33 BLE can be both a BLE and Bluetooth® client and host device. Something pretty unique in the world of microcontroller platforms. If you want to see how easy it is to create a Bluetooth® central or a peripheral device.
 
-### Arduino Nano BLE 33 - PINOUT
-![alt text](./Assets/nano33blepinout.png "Arduino Nano 33 BLE Pinout") 
+* 9 axis inertial sensor: what makes this board ideal for wearable devices
+* Humidity, and temperature sensor: to get highly accurate measurements of the environmental conditions
+* Barometric sensor: you could make a simple weather station
+* Microphone: to capture and analyse sound in real time
+* Gesture, proximity, light color and light intensity sensor : estimate the room’s luminosity, but also whether someone is moving close to the board
+
+### Arduino Nano BLE 33 Sense - PINOUT
+![alt text](./Assets/nano33senseblepinout.png "Arduino Nano 33 BLE Sense Pinout") 
 
 ## Setting up Your Development Toolchain
 The code in this repository depends on Ardunio, Visual Studio Code and PlatformIO.
 
 ### Your Local Machine
-The development "toolchain" refers to all of the various tools, SDK's and bits we need to install on your machine to facilitate a smooth experience 
-developing our BLE devices and the Raspberry Pi Gateway device. Our main development tool will be Visual Studio code. It has dependencies on tools 
-from Arduino and other open source projects, but it will be the central place where all our development will occur making it easy to follow along 
-regardless of which operating system you are working on.
+The development "toolchain" refers to all of the various tools, SDK's and bits we need to install on your machine to facilitate a smooth experience developing our BLE devices and the Raspberry Pi Gateway device. Our main development tool will be Visual Studio code. It has dependencies on tools 
+from Arduino and other open source projects, but it will be the central place where all our development will occur making it easy to follow along regardless of which operating system you are working on.
 
 | - | Install These Tools |
 |---|---|
@@ -36,7 +45,7 @@ Assuming everything is installed and working, Open Visual Studio Code and open t
 
 ![Start](./Assets/vscode-startup-with-platformio.png)
 
-### Testing Your BLE Nano Device
+### Testing Your Nano BLE Device
 You will want to have a BLE testing application installed on your phone. This will allow you communicate to the Nano board as a Central application. This is how we will test, see configuration and do some basic communications.
 
 One of the more popular and easy to use is LightBlue. Here is the overview from the developer...
@@ -78,7 +87,7 @@ Key features:
 ## Connecting Your Board
 The only thing required for this project to work with you Nano is to hook it up with a Mini-B USB cable. Once you plug it and are connected, the onboard power led will light up green.
 
-[LINK: Getting started with the Arduino NANO 33 BLE](https://www.arduino.cc/en/Guide/NANO33BLE)
+[LINK: Getting started with the Arduino NANO 33 BLE Sense](https://www.arduino.cc/en/Guide/NANO33BLESense)
 
 If this is your first time programming an Arduino Nano board, I suggest you visit and try a couple samples via the Arduino IDE (which we have installed) just to take a test drive and make sure you have the working connection to your board.
 
@@ -87,7 +96,7 @@ If this is your first time programming an Arduino Nano board, I suggest you visi
 
 
 ## Getting Started with the Ardunio BLE Library
-The Ardunio Nano BLE 33 has a robust library for supporting Bluetooth Low Energy "Peripheral Clients" and "Central BLE" applications (like the Raspberry Pi Gateway we are creating in this training series).
+The Ardunio Nano BLE 33 Sense has a robust library for supporting Bluetooth Low Energy "Peripheral Clients" and "Central BLE" applications (like the Raspberry Pi Gateway we are creating in this training series).
 
 I suggest that you read through the documentation as it is detailed and very well done. This will give you the foundation for the code we will be deploying to our device.
 
