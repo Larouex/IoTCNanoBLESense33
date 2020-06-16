@@ -1,4 +1,4 @@
-# Arduino Nano BLE 33 for Azure IoT Central
+# Arduino Nano BLE 33 SENSE for Azure IoT Central
 
 ## Overview
 This repository is part of a training and project series for Azure IoT Central. The name of the series is "Raspberry Pi Gateway and Arduino Nano BLE Devices for Azure Iot Central" and is located at...
