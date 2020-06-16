@@ -97,7 +97,7 @@ I suggest that you read through the documentation as it is detailed and very wel
 ## The Code
 Let's walk through the code and I will explain the capabilities. It is the simpliest of the sketches in the training and the other Nano devices expose more telemetry, properties and commands.
 
-Overall the sketch is fairly simple. We have three elements we will be sending as Bluetooth characteristics from our Peripheral device.
+The following will be the Bluetooth characteristics we will be exposing from our Peripheral device...
 
 * <b>VERSION</b>
 * <b>BATTERY CHARGED</b>
