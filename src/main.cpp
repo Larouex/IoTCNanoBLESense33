@@ -33,7 +33,13 @@ bool          bleDelayActive  = false;
    -------------------------------------------------------------------------- */
 unsigned long   telemetryStartDelay     = 0;
 bool            telemetryDelayActive    = false;
-unsigned long   telemetryFrequency       = 1500;
+unsigned long   telemetryFrequency      = 1500;
+
+/* --------------------------------------------------------------------------
+    We flash the RTGB to show ready to connect Green/Blue...
+   -------------------------------------------------------------------------- */
+unsigned long readyToConnectDelay       = 0;
+bool          readyToConnectDelayActive = false;
 
 /* --------------------------------------------------------------------------
     Configure IMU
@@ -74,7 +80,8 @@ enum CHARACTERISTICS: int {
   AMBIENTLIGHT_CHARACTERISTIC,
   COLOR_CHARACTERISTIC,
   PROXIMITY_CHARACTERISTIC,
-  GESTURE_CHARACTERISTIC
+  GESTURE_CHARACTERISTIC,
+  DCM_CHARACTERISTIC
 };
 
 /* --------------------------------------------------------------------------
@@ -94,10 +101,14 @@ int oldBatteryLevel = 0;
 const unsigned char SEMANTIC_VERSION[14] = STR(VERSION);
 
 /* --------------------------------------------------------------------------
-    BLE Service Definition
+    Broadcast of the Device Capability Model for BLE Device
    -------------------------------------------------------------------------- */
-#define LAROUEX_BLE_SERVICE_UUID(val) ("6F165338-" val "-43B9-837B-41B1A3C86EC1")
-BLEService blePeripheral(LAROUEX_BLE_SERVICE_UUID("0000")); 
+const unsigned char DEVICE_CAPABILITY_MODEL[256] = STR(DCM);
+
+/* --------------------------------------------------------------------------
+    BLE Service Definition UUID and DEVICE NAME
+   -------------------------------------------------------------------------- */
+BLEService blePeripheral(STR(SERVICE_UUID)); 
 
 // ************************* BEGIN CHARACTERISTICS **************************
 
@@ -105,68 +116,72 @@ BLEService blePeripheral(LAROUEX_BLE_SERVICE_UUID("0000"));
     BLE Peripheral Characteristics - Readable by Central/Gateway
    -------------------------------------------------------------------------- */
 // Version
-BLECharacteristic               versionCharacteristic("1001", BLERead | BLEWrite, sizeof(SEMANTIC_VERSION));
-BLEDescriptor                   versionCharacteristicDesc("1002", "Version");
+BLECharacteristic               versionCharacteristic("1001", BLERead, sizeof(SEMANTIC_VERSION));
+BLEDescriptor                   versionCharacteristicDesc("2901", "Version");
 
 // Battery Charged
 BLEFloatCharacteristic          batteryChargedCharacteristic("2001", BLERead | BLENotify | BLEIndicate);
-BLEDescriptor                   batteryChargedCharacteristicDesc("2002", "Battery Charged");
+BLEDescriptor                   batteryChargedCharacteristicDesc("2901", "Battery Charged");
 
 // Telemetry Frequency
 BLEIntCharacteristic            telemetryFrequencyCharacteristic("3001", BLERead | BLEWrite | BLENotify | BLEIndicate);
-BLEDescriptor                   telemetryFrequencyCharacteristicDesc("3002", "Telemetry Frequency");
+BLEDescriptor                   telemetryFrequencyCharacteristicDesc("2901", "Telemetry Frequency");
 
 // Accelerometer
 BLECharacteristic               accelerometerCharacteristic("4001", BLENotify, 3 * sizeof(float));
-BLEDescriptor                   accelerometerCharacteristicDesc("4002", "Accelerometer");
+BLEDescriptor                   accelerometerCharacteristicDesc("2901", "Accelerometer");
 
 // Gyroscope
 BLECharacteristic               gyroscopeCharacteristic("5001", BLENotify, 3 * sizeof(float));
-BLEDescriptor                   gyroscopeCharacteristicDesc("5002", "Gyroscope");
+BLEDescriptor                   gyroscopeCharacteristicDesc("2901", "Gyroscope");
 
 // Magnetometer
 BLECharacteristic               magnetometerCharacteristic("6001", BLENotify, 3 * sizeof(float));
-BLEDescriptor                   magnetometerCharacteristicDesc("6002", "Magnetometer");
+BLEDescriptor                   magnetometerCharacteristicDesc("2901", "Magnetometer");
 
 // Orientation
 BLECharacteristic               orientationCharacteristic("7001", BLENotify, 3 * sizeof(float));
-BLEDescriptor                   orientationCharacteristicDesc("7002", "Orientation");
+BLEDescriptor                   orientationCharacteristicDesc("2901", "Orientation");
 
 // RGB Led
 BLECharacteristic               rgbLedCharacteristic("8001", BLERead | BLEWrite, 3 * sizeof(byte));
-BLEDescriptor                   rgbLedCharacteristicDesc("8002", "RGB Led");
+BLEDescriptor                   rgbLedCharacteristicDesc("2901", "RGB Led");
 
 // Barometer
 BLEFloatCharacteristic          barometerCharacteristic("9001", BLERead);
-BLEDescriptor                   barometerCharacteristicDesc("9002", "Barometer");
+BLEDescriptor                   barometerCharacteristicDesc("2901", "Barometer");
 
 // Temperature
 BLEFloatCharacteristic          temperatureCharacteristic("1101", BLERead);
-BLEDescriptor                   temperatureCharacteristicDesc("1102", "Temperature");
+BLEDescriptor                   temperatureCharacteristicDesc("2901", "Temperature");
 
 // Humidity
 BLEFloatCharacteristic          humidityCharacteristic("1201", BLERead);
-BLEDescriptor                   humidityCharacteristicDesc("1202", "Humidity");
+BLEDescriptor                   humidityCharacteristicDesc("2901", "Humidity");
 
 // Microphone
 BLECharacteristic               microphoneCharacteristic("1301", BLENotify, 32);
-BLEDescriptor                   microphoneCharacteristicDesc("1302", "Microphone");
+BLEDescriptor                   microphoneCharacteristicDesc("2901", "Microphone");
 
 // Ambient Light
 BLEUnsignedShortCharacteristic  ambientLightCharacteristic("1401", BLENotify);
-BLEDescriptor                   ambientLightCharacteristicDesc("1402", "Ambient Light");
+BLEDescriptor                   ambientLightCharacteristicDesc("2901", "Ambient Light");
 
 // Color
 BLECharacteristic               colorCharacteristic("1501", BLENotify, 3 * sizeof(unsigned short));
-BLEDescriptor                   colorCharacteristicDesc("1502", "Color");
+BLEDescriptor                   colorCharacteristicDesc("2901", "Color");
 
 // Proximity
 BLEUnsignedCharCharacteristic   proximityCharacteristic("1601", BLENotify);
-BLEDescriptor                   proximityCharacteristicDesc("1602", "Proximity");
+BLEDescriptor                   proximityCharacteristicDesc("2901", "Proximity");
 
 // Gesture
 BLEByteCharacteristic           gestureCharacteristic("1701", BLENotify);
-BLEDescriptor                   gestureCharacteristicDesc("1702", "Gesture");
+BLEDescriptor                   gestureCharacteristicDesc("2901", "Gesture");
+
+// Device Capability Model
+BLECharacteristic               dcmCharacteristic("9901", BLERead, sizeof(DEVICE_CAPABILITY_MODEL));
+BLEDescriptor                   dcmCharacteristicDesc("2901", "Device Capability Model");
 
 // ************************** END CHARACTERISTICS ***************************
 
@@ -408,9 +423,9 @@ void onTemperatureCharacteristicRead(BLEDevice central, BLECharacteristic charac
     HUMIDITY (read) Event Handler from Central/Gateway
    -------------------------------------------------------------------------- */
 void onHumidityCharacteristicRead(BLEDevice central, BLECharacteristic characteristic) {
-  float temperature = HTS.readHumidity();
-  temperatureCharacteristic.writeValue(temperature);
-  Serial.println("[EVENT] onTemperatureCharacteristicRead");
+  float humidity = HTS.readHumidity();
+  humidityCharacteristic.writeValue(humidity);
+  Serial.println("[EVENT] onHumidityCharacteristicRead");
 }
 
 /* --------------------------------------------------------------------------
@@ -568,6 +583,13 @@ int SetUpCharacteristic(int whichCharacteristic)
       result = whichCharacteristic;
       break;
 
+    case DCM_CHARACTERISTIC:
+      blePeripheral.addCharacteristic(dcmCharacteristic); 
+      dcmCharacteristic.addDescriptor(dcmCharacteristicDesc);
+      dcmCharacteristic.setValue(DEVICE_CAPABILITY_MODEL, 256);
+      result = whichCharacteristic;
+      break;
+
     default:
       break;
   }
@@ -588,7 +610,7 @@ void setup() {
 
   // initialize serial communication
   Serial.begin(9600);    
-  while (!Serial);
+  //while (!Serial);
 
   // configure the data receive callback
   PDM.onReceive(onPDMdata);
@@ -716,14 +738,24 @@ void setup() {
   } else {
     Serial.println("[SUCCESS] SetUpCharacteristic->GESTURE_CHARACTERISTIC");
   }
+  
+  if (!SetUpCharacteristic(DCM_CHARACTERISTIC)) {
+    Serial.println("[FAILED] SetUpCharacteristic->DCM_CHARACTERISTIC");
+  } else {
+    Serial.println("[SUCCESS] SetUpCharacteristic->DCM_CHARACTERISTIC");
+  }
+
   /* 
     Set a local name for the BLE device
     This name will appear in advertising packets
     and can be used by remote devices to identify this BLE device
     The name can be changed but maybe be truncated based on space left in advertisement packet
   */
-  BLE.setLocalName("LarouexBLE");
-  BLE.setDeviceName("Larouex BLE Device 001");
+  BLE.setLocalName(STR(DEVICE_NAME));
+  BLE.setDeviceName(STR(DEVICE_NAME));
+  byte data[5] = { 0x01, 0x02, 0x03, 0x04, 0x05};
+  BLE.setManufacturerData(data, 5);
+  BLE.setAdvertisedServiceUuid(STR(SERVICE_UUID));
   BLE.setAdvertisedService(blePeripheral);
   BLE.addService(blePeripheral);
 
@@ -732,11 +764,16 @@ void setup() {
      until it receives a new connection */
   BLE.advertise();
 
-  // Set leds to idle
-  digitalWrite(LED_BUILTIN, LOW);
-  SetBuiltInRGB(LOW, LOW, LOW);
+  readyToConnectDelay = millis();
+  readyToConnectDelayActive = true;
 
   Serial.println("[READY] Bluetooth device active, waiting for connections...");
+
+  // Set leds to idle
+  digitalWrite(LED_BUILTIN, HIGH);
+  SetBuiltInRGB(HIGH, LOW, HIGH);
+  
+  return;
 }
 
 /* --------------------------------------------------------------------------
@@ -746,7 +783,18 @@ void loop() {
 
   // listen for BLE peripherals to connect:
   BLEDevice central = BLE.central();
-
+  
+  if (readyToConnectDelayActive && ((millis() - readyToConnectDelay) >= 1000)) {
+    SetBuiltInRGB(HIGH, HIGH, LOW);
+    readyToConnectDelay = millis();
+    readyToConnectDelayActive = false;
+  }
+  else if (!readyToConnectDelayActive && ((millis() - readyToConnectDelay) >= 1000)) {
+    SetBuiltInRGB(LOW, HIGH, HIGH);
+    readyToConnectDelay = millis();
+    readyToConnectDelayActive = true;
+  }
+  
   // if a central is connected to peripheral:
   if (central) {
 
