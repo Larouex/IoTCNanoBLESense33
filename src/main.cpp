@@ -33,7 +33,7 @@ bool          bleDelayActive  = false;
    -------------------------------------------------------------------------- */
 unsigned long   telemetryStartDelay     = 0;
 bool            telemetryDelayActive    = false;
-unsigned long   telemetryFrequency      = 1500;
+unsigned long   telemetryFrequency      = 000;
 
 /* --------------------------------------------------------------------------
     We flash the RTGB to show ready to connect Green/Blue...
@@ -48,9 +48,12 @@ const int IMU_HZ = 119;
 Madgwick filter;
 unsigned long msecsPerReading, msecsPrevious;
 
-// buffer to read samples into, each sample is 16-bits
-short sampleBuffer[256];
-// number of samples read
+/* --------------------------------------------------------------------------
+    Microphone and PDM
+   -------------------------------------------------------------------------- */
+#define SAMPLE_RATE          16000
+#define BUFFER_SIZE          256
+short sampleBuffer[BUFFER_SIZE];
 volatile int samplesRead;
 
 /* --------------------------------------------------------------------------
@@ -91,6 +94,13 @@ enum CHARACTERISTICS: int {
 int AMBIENT_TEMPERATURE_ADJUST = 5;
 
 /* --------------------------------------------------------------------------
+    Don't Send too Much Data
+   -------------------------------------------------------------------------- */
+float previousTemperature = 0;
+float previousHumidity = 0;
+float previousBarometer = 0;
+
+/* --------------------------------------------------------------------------
     Previous Battery Level Monitors
    -------------------------------------------------------------------------- */
 int oldBatteryLevel = 0;
@@ -120,11 +130,11 @@ BLECharacteristic               versionCharacteristic("1001", BLERead, sizeof(SE
 BLEDescriptor                   versionCharacteristicDesc("2901", "Version");
 
 // Battery Charged
-BLEFloatCharacteristic          batteryChargedCharacteristic("2001", BLERead | BLENotify | BLEIndicate);
+BLEFloatCharacteristic          batteryChargedCharacteristic("2001", BLERead);
 BLEDescriptor                   batteryChargedCharacteristicDesc("2901", "Battery Charged");
 
 // Telemetry Frequency
-BLEIntCharacteristic            telemetryFrequencyCharacteristic("3001", BLERead | BLEWrite | BLENotify | BLEIndicate);
+BLEIntCharacteristic            telemetryFrequencyCharacteristic("3001", BLERead | BLEWrite);
 BLEDescriptor                   telemetryFrequencyCharacteristicDesc("2901", "Telemetry Frequency");
 
 // Accelerometer
@@ -144,19 +154,19 @@ BLECharacteristic               orientationCharacteristic("7001", BLENotify, 3 *
 BLEDescriptor                   orientationCharacteristicDesc("2901", "Orientation");
 
 // RGB Led
-BLECharacteristic               rgbLedCharacteristic("8001", BLERead | BLEWrite, 3 * sizeof(byte));
+BLECharacteristic               rgbLedCharacteristic("8001", BLERead, 3 * sizeof(byte));
 BLEDescriptor                   rgbLedCharacteristicDesc("2901", "RGB Led");
 
 // Barometer
-BLEFloatCharacteristic          barometerCharacteristic("9001", BLERead);
+BLEFloatCharacteristic          barometerCharacteristic("9001", BLERead | BLENotify);
 BLEDescriptor                   barometerCharacteristicDesc("2901", "Barometer");
 
 // Temperature
-BLEFloatCharacteristic          temperatureCharacteristic("1101", BLERead);
+BLEFloatCharacteristic          temperatureCharacteristic("1101", BLERead | BLENotify);
 BLEDescriptor                   temperatureCharacteristicDesc("2901", "Temperature");
 
 // Humidity
-BLEFloatCharacteristic          humidityCharacteristic("1201", BLERead);
+BLEFloatCharacteristic          humidityCharacteristic("1201", BLERead | BLENotify);
 BLEDescriptor                   humidityCharacteristicDesc("2901", "Humidity");
 
 // Microphone
@@ -237,7 +247,7 @@ void UpdateIMU() {
   float gyroDPS[3];
   float magneticField[3];
 
-  if ((orientationCharacteristic.subscribed() || accelerometerCharacteristic.subscribed()) && IMU.accelerationAvailable()) {
+  if (IMU.accelerationAvailable()) {
     
     // read the Accelerometer
     float x, y, z;
@@ -248,7 +258,6 @@ void UpdateIMU() {
 
     if (accelerometerCharacteristic.subscribed()) {
       accelerometerCharacteristic.writeValue(acceleration, sizeof(acceleration));
-      
       Serial.print("[IMU] Acceleration(X): ");
       Serial.println(acceleration[0]);
       Serial.print("[IMU] Acceleration(Y): ");
@@ -256,17 +265,15 @@ void UpdateIMU() {
       Serial.print("[IMU] Acceleration(Z): ");
       Serial.println(acceleration[2]);
     }
+    #ifdef DEBUG
+      if (!accelerometerCharacteristic.subscribed())
+      {
+        Serial.println("[IMU] Please Subscribe to Acceleration for Notifications");
+      }
+    #endif
   }
-  #ifdef DEBUG
-    if (!orientationCharacteristic.subscribed())
-    {
-      Serial.println("[IMU] Please Subscribe to Orientation & Acceleration for Notifications");
-    }
-  #endif
 
-
-  if ((orientationCharacteristic.subscribed() || gyroscopeCharacteristic.subscribed()) && IMU.gyroscopeAvailable()) {
-    
+  if (IMU.gyroscopeAvailable()) {
     // read the Gyro
     float x, y, z;
     IMU.readGyroscope(x, y, z);
@@ -276,7 +283,6 @@ void UpdateIMU() {
 
     if (gyroscopeCharacteristic.subscribed()) {
       gyroscopeCharacteristic.writeValue(gyroDPS, sizeof(gyroDPS));
-
       Serial.print("[IMU] Gyroscope(X): ");
       Serial.println(gyroDPS[0]);
       Serial.print("[IMU] Gyroscope(Y): ");
@@ -284,16 +290,16 @@ void UpdateIMU() {
       Serial.print("[IMU] Gyroscope(Z): ");
       Serial.println(gyroDPS[2]);
     }
+
+    #ifdef DEBUG
+      if (!gyroscopeCharacteristic.subscribed())
+      {
+        Serial.println("[IMU] Please Subscribe to Gyroscope for Notifications");
+      }
+    #endif
   }
 
-  #ifdef DEBUG
-    if (!orientationCharacteristic.subscribed())
-    {
-      Serial.println("[IMU] Please Subscribe to Orientation & Gyroscope for Notifications");
-    }
-  #endif
-
-  if ((orientationCharacteristic.subscribed() || magnetometerCharacteristic.subscribed()) && IMU.magneticFieldAvailable()) {
+  if (IMU.magneticFieldAvailable()) {
     
     // read the Mag
     float x, y, z;
@@ -312,16 +318,21 @@ void UpdateIMU() {
       Serial.print("[IMU] Magnetometer(Z): ");
       Serial.println(magneticField[2]);
     }
+    #ifdef DEBUG
+      if (!magnetometerCharacteristic.subscribed())
+      {
+        Serial.println("[IMU] Please Subscribe to Magnetometer for Notifications");
+      }
+    #endif
   }
 
-  #ifdef DEBUG
-    if (!orientationCharacteristic.subscribed() && !magnetometerCharacteristic.subscribed())
-    {
-      Serial.println("[IMU] Please Subscribe to Magnetometer & Orientation for Notifications");
-    }
-  #endif
-
-  if (orientationCharacteristic.subscribed() && (micros() - msecsPrevious >= msecsPerReading)) {
+  if (  orientationCharacteristic.subscribed() && 
+        accelerometerCharacteristic.subscribed() &&
+        magnetometerCharacteristic.subscribed() &&
+        gyroscopeCharacteristic.subscribed()) {
+  
+    if (!(micros() - msecsPrevious >= msecsPerReading))
+      return;
     
     float heading, pitch, roll;
     
@@ -381,6 +392,30 @@ void UpdateBatteryLevel() {
   telemetryDelayActive = true;
 }
 
+/* --------------------------------------------------------------------------
+    Send updates to Notify...
+   -------------------------------------------------------------------------- */
+void UpdateTemperatureHumidityBarometerReadings() {
+
+  float temperature = HTS.readTemperature(FAHRENHEIT);
+  Serial.print("Temperature: ");
+  Serial.println(temperature);
+  temperatureCharacteristic.writeValue(temperature);
+  previousTemperature = temperature;
+  
+  float humidity = HTS.readHumidity();
+  Serial.print("Humidity: ");
+  Serial.println(humidity);
+  humidityCharacteristic.writeValue(humidity);
+  previousHumidity = humidity;
+
+  float barometer = BARO.readPressure();
+  Serial.print("barometer: ");
+  Serial.println(barometer);
+  barometerCharacteristic.writeValue(barometer);
+  previousBarometer = barometer;
+}
+
 // ************************* BEGIN EVENT HANDLERS ***************************
 
 /* --------------------------------------------------------------------------
@@ -428,44 +463,13 @@ void onHumidityCharacteristicRead(BLEDevice central, BLECharacteristic character
   Serial.println("[EVENT] onHumidityCharacteristicRead");
 }
 
-/* --------------------------------------------------------------------------
-    RGBLED_CHARACTERISTIC Event Handler from Central/Gateway
-   -------------------------------------------------------------------------- */
-void onRgbLedCharacteristicWrite(BLEDevice central, BLECharacteristic characteristic) {
-  
-  // Enable a Pause to Show this Write
-  bleStartDelay = millis();
-  bleDelayActive = true;
-
-  // parse the array for LED Set
-  PinStatus r = rgbLedCharacteristic[0] == 0 ? LOW : HIGH;
-  PinStatus g = rgbLedCharacteristic[1] == 0 ? LOW : HIGH;
-  PinStatus b = rgbLedCharacteristic[2] == 0 ? LOW : HIGH;
-  
-  SetBuiltInRGB(r, g, b);
-  
-  // update the serial port with the values captured
-  Serial.print("[EVENT] RGBLED_CHARACTERISTIC (RED): ");
-  Serial.println(r);
-  Serial.print("[EVENT] RGBLED_CHARACTERISTIC (GREEN): ");
-  Serial.println(g);
-  Serial.print("[EVENT] RGBLED_CHARACTERISTIC (BLUE): ");
-  Serial.println(b);
-
-}
-
-void onPDMdata() {
-
-  // query the number of bytes available
+void onPDMdata()
+{
   int bytesAvailable = PDM.available();
-
-  // read into the sample buffer
   PDM.read(sampleBuffer, bytesAvailable);
-
-  // 16-bit, 2 bytes per sample
-  samplesRead = bytesAvailable / 2;
-
+  samplesRead = bytesAvailable / sizeof(short);
 }
+
 
 // ************************** END EVENT HANDLERS ****************************
 
@@ -528,7 +532,6 @@ int SetUpCharacteristic(int whichCharacteristic)
     case RGBLED_CHARACTERISTIC:
       blePeripheral.addCharacteristic(rgbLedCharacteristic); 
       rgbLedCharacteristic.addDescriptor(rgbLedCharacteristicDesc);
-      rgbLedCharacteristic.setEventHandler(BLEWritten, onRgbLedCharacteristicWrite);
       result = whichCharacteristic;
       break;
 
@@ -612,9 +615,16 @@ void setup() {
   Serial.begin(9600);    
   //while (!Serial);
 
-  // configure the data receive callback
+  // PDM and Microphone
+  /*
   PDM.onReceive(onPDMdata);
-
+  PDM.setGain(30);
+  if (!PDM.begin(1, SAMPLE_RATE))
+  {
+    Serial.println("Failed to start PDM!");
+    while (1);
+  }
+*/
   if (APDS.begin() && HTS.begin() && BARO.begin() && PDM.begin(1, 16000)) {
     Serial.println("[SUCCESS] Succesfully initialized sensors on Nano 33 BLE Sense");
   } else {
@@ -769,10 +779,6 @@ void setup() {
 
   Serial.println("[READY] Bluetooth device active, waiting for connections...");
 
-  // Set leds to idle
-  digitalWrite(LED_BUILTIN, HIGH);
-  SetBuiltInRGB(HIGH, LOW, HIGH);
-  
   return;
 }
 
@@ -811,18 +817,19 @@ void loop() {
 
     // while the central is still connected to peripheral:
     while (central.connected()) {
-      
-      if (bleDelayActive && ((millis() - telemetryStartDelay) >= 10000)) {
+    
+      if (bleDelayActive && ((millis() - bleStartDelay) >= 5000)) {
         bleDelayActive = false;
       }
 
       if (!bleDelayActive) {
         if (telemetryDelayActive && ((millis() - telemetryStartDelay) >= telemetryFrequency)) {
           UpdateBatteryLevel();
+          UpdateTemperatureHumidityBarometerReadings();
           UpdateIMU();
+          telemetryStartDelay = millis();
         }
       }
-
     }
 
     // when the central disconnects, print it out:
