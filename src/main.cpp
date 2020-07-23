@@ -1,7 +1,7 @@
 /* ==========================================================================
     File:     main.cpp
     Author:   Larry W Jordan Jr (larouex@gmail.com)
-    Purpose:  Arduino Nano BLE 33 example for Bluetooth Connectivity
+    Purpose:  Arduino Nano BLE 33 Sense example for Bluetooth Connectivity
               to IoT Gateway Device working with Azure IoT Central
     Online:   www.hackinmakin.com
 
@@ -33,7 +33,7 @@ bool          bleDelayActive  = false;
    -------------------------------------------------------------------------- */
 unsigned long   telemetryStartDelay     = 0;
 bool            telemetryDelayActive    = false;
-unsigned long   telemetryFrequency      = 000;
+unsigned long   telemetryFrequency      = 1500;
 
 /* --------------------------------------------------------------------------
     We flash the RTGB to show ready to connect Green/Blue...
